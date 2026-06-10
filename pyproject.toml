@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ovos-a2a-solver-plugin"
+dynamic = ["version"]
+description = "Consume external A2A agents as OVOS persona solvers"
+readme = "README.md"
+license = "Apache-2.0"
+authors = [{name = "OpenVoiceOS", email = "openvoiceos@gmail.com"}]
+requires-python = ">=3.10"
+dependencies = [
+    "ovos-plugin-manager>=2.3.0a1,<3.0.0",
+    "httpx>=0.25.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/TigreGotico/ovos-a2a-solver-plugin"
+Repository = "https://github.com/TigreGotico/ovos-a2a-solver-plugin"
+"Bug Tracker" = "https://github.com/OpenVoiceOS/ovos-persona/issues/164"
+
+[project.optional-dependencies]
+test = ["pytest", "pytest-cov", "respx"]
+
+[project.entry-points."opm.agents.chat"]
+ovos-a2a-solver = "ovos_a2a_solver.engine:A2AChatEngine"
+
+[tool.setuptools.dynamic]
+version = {attr = "ovos_a2a_solver.version.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ovos_a2a_solver*"]

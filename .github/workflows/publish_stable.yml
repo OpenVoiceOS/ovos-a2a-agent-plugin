@@ -1,0 +1,21 @@
+name: Publish Stable
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [master]
+
+permissions:
+  contents: write
+
+jobs:
+  publish_stable:
+    if: github.event.pull_request.merged == true
+    uses: OpenVoiceOS/gh-automations/.github/workflows/publish-stable.yml@dev
+    secrets:
+      PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+      MATRIX_TOKEN: ${{ secrets.MATRIX_TOKEN }}
+    with:
+      version_file: 'ovos_a2a_solver/version.py'
+      publish_pypi: true
+      notify_matrix: true
