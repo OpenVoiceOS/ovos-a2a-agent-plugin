@@ -21,7 +21,7 @@ Repository = "https://github.com/TigreGotico/ovos-a2a-solver-plugin"
 "Bug Tracker" = "https://github.com/OpenVoiceOS/ovos-persona/issues/164"
 
 [project.optional-dependencies]
-test = ["pytest", "pytest-cov", "respx"]
+test = ["pytest", "pytest-cov", "respx", "fastapi", "uvicorn", "httpx"]
 
 [project.entry-points."opm.agents.chat"]
 ovos-a2a-solver = "ovos_a2a_solver.engine:A2AChatEngine"
