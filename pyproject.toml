@@ -21,7 +21,25 @@ Repository = "https://github.com/TigreGotico/ovos-a2a-solver-plugin"
 "Bug Tracker" = "https://github.com/OpenVoiceOS/ovos-persona/issues/164"
 
 [project.optional-dependencies]
-test = ["pytest", "pytest-cov", "respx", "fastapi", "uvicorn", "httpx"]
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-timeout",
+    "respx",
+    "fastapi",
+    "uvicorn",
+    "httpx",
+    "ovoscope",
+    "ovos-persona",
+    # ovos-persona-pipeline-plugin ships inside ovos-persona; no separate PyPI entry
+]
+e2e = [
+    "ovoscope",
+    "ovos-persona",
+]
+
+[tool.pytest.ini_options]
+timeout = 600
 
 [project.entry-points."opm.agents.chat"]
 ovos-a2a-solver = "ovos_a2a_solver.engine:A2AChatEngine"
