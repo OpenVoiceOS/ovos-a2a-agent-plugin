@@ -69,6 +69,10 @@ _STUB_CARD = AgentCard(
     streaming=False,
 )
 
+# Save originals so the patch can be undone after the module fixture tears down.
+_REAL_FETCH_AGENT_CARD = A2AClient.fetch_agent_card
+_REAL_SEND_TASK = A2AClient.send_task
+
 
 def _stub_fetch_agent_card(self: A2AClient) -> AgentCard:
     """Return a static AgentCard; no HTTP request is made."""
@@ -83,12 +87,6 @@ def _stub_send_task(
 ) -> str:
     """Return a fixed reply; no HTTP request is made."""
     return _STUB_REPLY
-
-
-# Monkeypatch at class level so every instance (including those created inside
-# the pipeline worker thread) sees the stubs automatically.
-A2AClient.fetch_agent_card = _stub_fetch_agent_card  # type: ignore[method-assign]
-A2AClient.send_task = _stub_send_task  # type: ignore[method-assign]
 
 # Disable per-test timeout for the whole module: in a dev environment with many
 # heavy pipeline plugins (m2v, markov, …) the IntentService bootstrap can take
@@ -145,14 +143,23 @@ _TEST_PIPELINE = [
 
 @pytest.fixture(scope="module")
 def mc():
-    croft = get_minicroft(
-        skill_ids=[],
-        default_pipeline=_TEST_PIPELINE,
-        pipeline_config=_PIPELINE_CONFIG,
-        max_wait=480,  # IntentService loads all installed pipeline plugins (~90 s on this machine)
-    )
-    yield croft
-    croft.stop()
+    # Apply stubs at class level so every instance the pipeline worker creates
+    # sees them automatically.  Restore originals on teardown so other test
+    # modules (collected in the same pytest session) are not affected.
+    A2AClient.fetch_agent_card = _stub_fetch_agent_card  # type: ignore[method-assign]
+    A2AClient.send_task = _stub_send_task  # type: ignore[method-assign]
+    try:
+        croft = get_minicroft(
+            skill_ids=[],
+            default_pipeline=_TEST_PIPELINE,
+            pipeline_config=_PIPELINE_CONFIG,
+            max_wait=480,  # IntentService loads all installed pipeline plugins (~90 s on this machine)
+        )
+        yield croft
+        croft.stop()
+    finally:
+        A2AClient.fetch_agent_card = _REAL_FETCH_AGENT_CARD  # type: ignore[method-assign]
+        A2AClient.send_task = _REAL_SEND_TASK  # type: ignore[method-assign]
 
 
 # ---------------------------------------------------------------------------
