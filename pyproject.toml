@@ -31,12 +31,12 @@ test = [
     "httpx",
     "ovoscope",
     # Pin to git dev so persona.memory and the pipeline plugin are available in CI
-    "ovos-persona @ git+https://github.com/OpenVoiceOS/ovos-persona@dev",
+    "ovos-persona>=0.9.0a1",
     # ovos-persona-pipeline-plugin ships inside ovos-persona; no separate PyPI entry
 ]
 e2e = [
     "ovoscope",
-    "ovos-persona @ git+https://github.com/OpenVoiceOS/ovos-persona@dev",
+    "ovos-persona>=0.9.0a1",
 ]
 
 [tool.pytest.ini_options]
