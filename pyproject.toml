@@ -28,7 +28,7 @@ Repository = "https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin"
 [project.optional-dependencies]
 test = [
     "ovoscope>=0.13.1",
-    "pytest>=7.0.0",
+    "pytest>=7.0.0,<9",
     "pytest-timeout>=2.0.0",
     "pytest-cov",
     # local-mock A2A server used by test/end2end/test_e2e_a2a_solver.py

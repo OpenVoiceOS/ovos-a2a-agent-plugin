@@ -41,7 +41,7 @@ import tempfile
 
 import pytest
 
-ovoscope = pytest.importorskip("ovoscope")
+import ovoscope
 
 from ovoscope import (  # noqa: E402
     PERSONA_PIPELINE,
@@ -50,8 +50,9 @@ from ovoscope import (  # noqa: E402
     is_pipeline_available,
 )
 
-if not is_pipeline_available(PERSONA_PIPELINE):
-    pytest.skip("ovos-persona-pipeline-plugin not installed", allow_module_level=True)
+assert is_pipeline_available(PERSONA_PIPELINE), (
+    "ovos-persona-pipeline-plugin must be installed (ships with ovos-persona)"
+)
 
 # ---------------------------------------------------------------------------
 # Stub the A2A network boundary BEFORE the pipeline is started.
