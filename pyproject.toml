@@ -7,18 +7,23 @@ name = "ovos-a2a-solver-plugin"
 dynamic = ["version"]
 description = "Consume external A2A agents as OVOS persona solvers"
 readme = "README.md"
-license = "Apache-2.0"
+license = {text = "Apache-2.0"}
 authors = [{name = "OpenVoiceOS", email = "openvoiceos@gmail.com"}]
 requires-python = ">=3.10"
+classifiers = [
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+]
 dependencies = [
     "ovos-plugin-manager>=2.3.0a1,<3.0.0",
     "httpx>=0.25.0,<1.0",
 ]
 
 [project.urls]
-Homepage = "https://github.com/TigreGotico/ovos-a2a-solver-plugin"
-Repository = "https://github.com/TigreGotico/ovos-a2a-solver-plugin"
-"Bug Tracker" = "https://github.com/OpenVoiceOS/ovos-persona/issues/164"
+Homepage = "https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin"
+Repository = "https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin"
+"Bug Tracker" = "https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/issues"
 
 [project.optional-dependencies]
 test = [
