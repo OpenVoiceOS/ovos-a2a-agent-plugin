@@ -9,3 +9,7 @@ jobs:
   license_check:
     uses: OpenVoiceOS/gh-automations/.github/workflows/license-check.yml@dev
     secrets: inherit
+    with:
+      # This package is not yet published to PyPI, so the checker cannot fetch
+      # its (Apache-2.0) metadata and flags it as Error. Exclude it explicitly.
+      exclude_packages: '(?i:^ovos-a2a-solver-plugin$)'
