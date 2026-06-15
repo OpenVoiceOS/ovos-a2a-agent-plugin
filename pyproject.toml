@@ -12,7 +12,7 @@ authors = [{name = "OpenVoiceOS", email = "openvoiceos@gmail.com"}]
 requires-python = ">=3.10"
 dependencies = [
     "ovos-plugin-manager>=2.3.0a1,<3.0.0",
-    "httpx>=0.25.0",
+    "httpx>=0.25.0,<1.0",
 ]
 
 [project.urls]
@@ -22,21 +22,18 @@ Repository = "https://github.com/TigreGotico/ovos-a2a-solver-plugin"
 
 [project.optional-dependencies]
 test = [
-    "pytest",
+    "ovoscope>=0.13.1",
+    "pytest>=7.0.0",
+    "pytest-timeout>=2.0.0",
     "pytest-cov",
-    "pytest-timeout",
+    # local-mock A2A server used by test/end2end/test_e2e_a2a_solver.py
     "respx",
     "fastapi",
     "uvicorn",
-    "httpx",
-    "ovoscope",
-    # Pin to git dev so persona.memory and the pipeline plugin are available in CI
-    "ovos-persona>=0.9.0a1",
-    # ovos-persona-pipeline-plugin ships inside ovos-persona; no separate PyPI entry
-]
-e2e = [
-    "ovoscope",
-    "ovos-persona>=0.9.0a1",
+    "httpx>=0.25.0,<1.0",
+    # ovos-persona-pipeline-plugin ships inside ovos-persona; the locale data
+    # required to load the pipeline is only present in the wheel from 0.9.0a3 on
+    "ovos-persona>=0.9.0a3",
 ]
 
 [tool.pytest.ini_options]

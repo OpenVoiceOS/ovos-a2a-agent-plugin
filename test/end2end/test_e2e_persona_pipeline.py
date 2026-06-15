@@ -43,7 +43,7 @@ import pytest
 
 ovoscope = pytest.importorskip("ovoscope")
 
-from ovoscope import (
+from ovoscope import (  # noqa: E402
     PERSONA_PIPELINE,
     CaptureSession,
     get_minicroft,
