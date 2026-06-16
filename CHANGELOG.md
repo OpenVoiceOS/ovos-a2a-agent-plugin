@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.0a6](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/tree/0.0.0a6) (2026-06-16)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/compare/0.0.0a5...0.0.0a6)
+
+**Merged pull requests:**
+
+- chore: add missing shared CI workflows [\#7](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/pull/7) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.0.0a5](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/tree/0.0.0a5) (2026-06-13)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/compare/0.0.0a4...0.0.0a5)
