@@ -7,21 +7,42 @@ name = "ovos-a2a-solver-plugin"
 dynamic = ["version"]
 description = "Consume external A2A agents as OVOS persona solvers"
 readme = "README.md"
-license = "Apache-2.0"
+license = {text = "Apache-2.0"}
 authors = [{name = "OpenVoiceOS", email = "openvoiceos@gmail.com"}]
 requires-python = ">=3.10"
+classifiers = [
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+]
 dependencies = [
     "ovos-plugin-manager>=2.3.0a1,<3.0.0",
-    "httpx>=0.25.0",
+    "httpx>=0.25.0,<1.0",
 ]
 
 [project.urls]
-Homepage = "https://github.com/TigreGotico/ovos-a2a-solver-plugin"
-Repository = "https://github.com/TigreGotico/ovos-a2a-solver-plugin"
-"Bug Tracker" = "https://github.com/OpenVoiceOS/ovos-persona/issues/164"
+Homepage = "https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin"
+Repository = "https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin"
+"Bug Tracker" = "https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/issues"
 
 [project.optional-dependencies]
-test = ["pytest", "pytest-cov", "respx", "fastapi", "uvicorn", "httpx"]
+test = [
+    "ovoscope>=0.13.1",
+    "pytest>=7.0.0,<9",
+    "pytest-timeout>=2.0.0",
+    "pytest-cov",
+    # local-mock A2A server used by test/end2end/test_e2e_a2a_solver.py
+    "respx",
+    "fastapi",
+    "uvicorn",
+    "httpx>=0.25.0,<1.0",
+    # ovos-persona-pipeline-plugin ships inside ovos-persona; the locale data
+    # required to load the pipeline is only present in the wheel from 0.9.0a3 on
+    "ovos-persona>=0.9.0a3",
+]
+
+[tool.pytest.ini_options]
+timeout = 600
 
 [project.entry-points."opm.agents.chat"]
 ovos-a2a-solver = "ovos_a2a_solver.engine:A2AChatEngine"
