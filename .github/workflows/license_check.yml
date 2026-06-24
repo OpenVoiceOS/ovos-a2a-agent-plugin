@@ -10,8 +10,4 @@ jobs:
     uses: OpenVoiceOS/gh-automations/.github/workflows/license-check.yml@dev
     secrets: inherit
     with:
-      # This package is not yet published to PyPI; pip freeze emits it as a
-      # local direct reference (name @ file://...), which the checker cannot
-      # resolve and flags as Error. The checker full-matches (re-matches) the
-      # exclude pattern, so cover both the bare name and the direct-ref form.
-      exclude_packages: '(?i:ovos-a2a-solver-plugin.*)'
+      exclude_packages: '(?i:^ovos-a2a-solver-plugin([=<>!~ @;].*)?$)'
