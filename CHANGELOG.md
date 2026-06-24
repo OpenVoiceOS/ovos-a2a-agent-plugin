@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.0a7](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/tree/0.0.0a7) (2026-06-24)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/compare/0.0.0a6...0.0.0a7)
+
+**Merged pull requests:**
+
+- test: full-pipeline persona e2e \(ovoscope, stubbed A2A engine\) [\#6](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/pull/6) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.0.0a6](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/tree/0.0.0a6) (2026-06-16)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/compare/0.0.0a5...0.0.0a6)
