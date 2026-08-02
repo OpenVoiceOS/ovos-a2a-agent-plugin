@@ -189,6 +189,11 @@ def _get_persona_service(croft):
     return croft.intents.pipeline_plugins["ovos-persona-pipeline-plugin"]
 
 
+# Legacy and namespaced spelling of the "speak" bus message. Depending on
+# the resolved ovos-bus-client version, the stack may emit either (or both).
+_SPEAK_MSG_TYPES = {"speak", "ovos.utterance.speak"}
+
+
 # ---------------------------------------------------------------------------
 # Test 1: utterance flows through full pipeline → speak
 # ---------------------------------------------------------------------------
@@ -207,10 +212,10 @@ class TestA2APersonaSpeaksThroughPipeline:
 
         messages = _drive_utterance(mc, sess, "hello a2a bot", timeout=30)
         msg_types = [m.msg_type for m in messages]
-        speak_msgs = [m for m in messages if m.msg_type == "speak"]
+        speak_msgs = [m for m in messages if m.msg_type in _SPEAK_MSG_TYPES]
 
         assert speak_msgs, (
-            f"Expected at least one 'speak' message; got msg_types: {msg_types}"
+            f"Expected at least one of {_SPEAK_MSG_TYPES} message; got msg_types: {msg_types}"
         )
         spoken = speak_msgs[0].data.get("utterance", "")
         assert spoken.strip(), (
@@ -223,7 +228,7 @@ class TestA2APersonaSpeaksThroughPipeline:
         SessionManager.sessions[sess.session_id] = sess
 
         messages = _drive_utterance(mc, sess, "what can you do", timeout=30)
-        speak_msgs = [m for m in messages if m.msg_type == "speak"]
+        speak_msgs = [m for m in messages if m.msg_type in _SPEAK_MSG_TYPES]
 
         assert speak_msgs, "No speak message produced"
         spoken = speak_msgs[0].data.get("utterance", "")
