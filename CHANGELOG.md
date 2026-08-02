@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.1a1](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/tree/0.0.1a1) (2026-08-02)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/compare/0.0.0a7...0.0.1a1)
+
+**Merged pull requests:**
+
+- fix: accept namespaced ovos.utterance.speak in e2e persona test [\#10](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/pull/10) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.0.0a7](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/tree/0.0.0a7) (2026-06-24)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/compare/0.0.0a6...0.0.0a7)
