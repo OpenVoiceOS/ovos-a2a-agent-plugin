@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.1a2](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/tree/0.0.1a2) (2026-08-02)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/compare/0.0.1a1...0.0.1a2)
+
+**Merged pull requests:**
+
+- docs: rewrite README in Simplified Technical English [\#9](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/pull/9) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.0.1a1](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/tree/0.0.1a1) (2026-08-02)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/compare/0.0.0a7...0.0.1a1)
