@@ -48,6 +48,41 @@ def test_continue_chat_returns_assistant_message():
 
 
 @respx.mock
+def test_continue_chat_accepts_tools_kwarg_none():
+    """ChatEngine base contract: ``tools`` must be accepted (and ignored) even
+    though A2AChatEngine is not tool-capable."""
+    respx.get(BASE_URL + "/.well-known/agent.json").mock(
+        return_value=httpx.Response(200, json=CARD_RESPONSE)
+    )
+    respx.post(BASE_URL).mock(return_value=httpx.Response(200, json=TASK_OK))
+
+    engine = _make_engine()
+    messages = [AgentMessage(role=MessageRole.USER, content="Ping")]
+    reply = engine.continue_chat(messages, session_id="sess-1", tools=None)
+    assert isinstance(reply, AgentMessage)
+    assert reply.role == MessageRole.ASSISTANT
+
+
+@respx.mock
+def test_continue_chat_accepts_tools_kwarg_list():
+    """Passing a non-empty ``tools`` list must not raise, since the base
+    ChatEngine.continue_chat wrapper may call subclasses with tools=."""
+    respx.get(BASE_URL + "/.well-known/agent.json").mock(
+        return_value=httpx.Response(200, json=CARD_RESPONSE)
+    )
+    respx.post(BASE_URL).mock(return_value=httpx.Response(200, json=TASK_OK))
+
+    engine = _make_engine()
+    messages = [AgentMessage(role=MessageRole.USER, content="Ping")]
+    reply = engine.continue_chat(
+        messages, session_id="sess-1",
+        tools=[{"type": "function", "function": {"name": "noop"}}],
+    )
+    assert isinstance(reply, AgentMessage)
+    assert reply.role == MessageRole.ASSISTANT
+
+
+@respx.mock
 def test_continue_chat_multi_turn_history():
     respx.get(BASE_URL + "/.well-known/agent.json").mock(
         return_value=httpx.Response(200, json=CARD_RESPONSE)

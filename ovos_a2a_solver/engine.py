@@ -17,6 +17,11 @@ from __future__ import annotations
 from typing import Any, Dict, Iterable, List, Optional
 
 from ovos_plugin_manager.templates.agents import AgentMessage, ChatEngine, MessageRole
+
+try:
+    from ovos_plugin_manager.templates.agents import ToolsArg
+except ImportError:  # pragma: no cover - older ovos-plugin-manager
+    ToolsArg = Any
 from ovos_utils.log import LOG
 
 from ovos_a2a_solver.client import A2AClient, AgentCard
@@ -105,6 +110,7 @@ class A2AChatEngine(ChatEngine):
         session_id: str = "default",
         lang: Optional[str] = None,
         units: Optional[str] = None,
+        tools: "ToolsArg" = None,
     ) -> AgentMessage:
         """
         Send the conversation to the A2A agent and return the response.
@@ -117,6 +123,10 @@ class A2AChatEngine(ChatEngine):
             session_id: Session identifier forwarded to the A2A server.
             lang: Ignored (A2A agents handle language internally).
             units: Ignored.
+            tools: Accepted for ``ChatEngine`` contract conformance and ignored.
+                A2A delegates the whole turn to a remote agent that owns its own
+                tooling; the agentic-loop ReAct fallback depends on non-tool
+                engines being callable with ``tools=`` regardless.
 
         Returns:
             :class:`AgentMessage` with ``role=ASSISTANT`` containing the
