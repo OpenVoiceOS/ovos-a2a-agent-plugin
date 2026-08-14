@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List, Optional
 
-from ovos_plugin_manager.templates.agents import AgentMessage, ChatEngine, MessageRole
+from ovos_plugin_manager.templates.agents import AgentMessage, ChatEngine, MessageRole, ToolsArg
 from ovos_utils.log import LOG
 
 from ovos_a2a_solver.client import A2AClient, AgentCard
@@ -105,6 +105,7 @@ class A2AChatEngine(ChatEngine):
         session_id: str = "default",
         lang: Optional[str] = None,
         units: Optional[str] = None,
+        tools: ToolsArg = None,
     ) -> AgentMessage:
         """
         Send the conversation to the A2A agent and return the response.
@@ -117,6 +118,10 @@ class A2AChatEngine(ChatEngine):
             session_id: Session identifier forwarded to the A2A server.
             lang: Ignored (A2A agents handle language internally).
             units: Ignored.
+            tools: Ignored. Tool selection lives on the remote A2A agent's side
+                of the protocol; there is no seam here for injecting external
+                tool schemas. ``supports_tools`` stays False so the agentic
+                loop falls back to its text-based ReAct path.
 
         Returns:
             :class:`AgentMessage` with ``role=ASSISTANT`` containing the
