@@ -142,6 +142,27 @@ def test_card_fetch_failure_does_not_abort_init():
     assert engine._card is None
 
 
+@respx.mock
+def test_continue_chat_accepts_and_ignores_tools_kwarg():
+    """Base ChatEngine.continue_chat contract declares a ``tools`` kwarg
+    (ovos_plugin_manager.templates.agents.ChatEngine.continue_chat). Engines
+    that do not support native tool calling must still accept it and ignore
+    it, so the agentic loop's positional call sites keep working and so any
+    future caller that passes ``tools=`` by keyword does not blow up."""
+    respx.get(BASE_URL + "/.well-known/agent.json").mock(
+        return_value=httpx.Response(200, json=CARD_RESPONSE)
+    )
+    respx.post(BASE_URL).mock(return_value=httpx.Response(200, json=TASK_OK))
+
+    engine = _make_engine()
+    assert engine.supports_tools is False
+    messages = [AgentMessage(role=MessageRole.USER, content="Ping")]
+    reply = engine.continue_chat(messages, session_id="sess-1", tools=[{"type": "function"}])
+    assert isinstance(reply, AgentMessage)
+    assert reply.role == MessageRole.ASSISTANT
+    assert reply.content == "Pong!"
+
+
 def test_split_messages_helper():
     messages = [
         AgentMessage(role=MessageRole.SYSTEM, content="Be helpful."),
