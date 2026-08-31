@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.2a1](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/tree/0.0.2a1) (2026-08-31)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/compare/0.0.1a2...0.0.2a1)
+
+**Merged pull requests:**
+
+- fix: accept and ignore tools kwarg in A2AChatEngine.continue\_chat [\#12](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/pull/12) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.0.1a2](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/tree/0.0.1a2) (2026-08-02)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/compare/0.0.1a1...0.0.1a2)
