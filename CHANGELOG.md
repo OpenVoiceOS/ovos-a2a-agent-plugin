@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.2a2](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/tree/0.0.2a2) (2026-09-19)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/compare/0.0.2a1...0.0.2a2)
+
+**Merged pull requests:**
+
+- Update dependency pytest to v9 [\#8](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/pull/8) ([renovate[bot]](https://github.com/apps/renovate))
+
 ## [0.0.2a1](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/tree/0.0.2a1) (2026-08-31)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/compare/0.0.1a2...0.0.2a1)
