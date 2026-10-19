@@ -11,37 +11,20 @@
 # limitations under the License.
 """Full-pipeline persona end-to-end test using ovoscope.
 
-Validates that the complete OVOS intent pipeline can route utterances
-through ovos-persona-pipeline-plugin into A2AChatEngine and produce a
-``speak`` bus message — without any network access or running A2A server.
-
-Stubbing strategy
------------------
-Two boundaries are monkeypatched before the pipeline thread starts:
-
-1. ``A2AClient.fetch_agent_card`` — called in ``A2AChatEngine.__init__``
-   via ``_fetch_card()``.  Returns a dummy :class:`AgentCard` so the engine
-   constructs without touching a real URL.
-
-2. ``A2AClient.send_task`` — the single method that performs the outbound
-   HTTP request in the blocking (non-streaming) path.  Returns the fixed
-   string ``"stubbed a2a reply"`` so the engine produces a deterministic
-   response through the full persona pipeline.
-
-These stubs are applied at *module level* (before any test fixture runs) so
-the pipeline worker thread always sees the patched versions.  This validates
-the integration path — OVOS session → persona pipeline plugin → ChatEngine
-→ ``speak`` bus message — without coupling the test to any remote service.
+An utterance travels through the OVOS intent pipeline, the
+ovos-persona-pipeline-plugin and A2AChatEngine to a real a2a-sdk agent
+(test/a2a_agent.py), and the agent's answer comes back as a ``speak`` bus
+message. The agent answers ``echo[<contextId>]: <text>``. The contextId is the
+one the agent assigned, never the OVOS session id.
 """
 from __future__ import annotations
 
 import json
 import os
+import re
 import tempfile
 
 import pytest
-
-import ovoscope
 
 from ovoscope import (  # noqa: E402
     PERSONA_PIPELINE,
@@ -54,41 +37,6 @@ assert is_pipeline_available(PERSONA_PIPELINE), (
     "ovos-persona-pipeline-plugin must be installed (ships with ovos-persona)"
 )
 
-# ---------------------------------------------------------------------------
-# Stub the A2A network boundary BEFORE the pipeline is started.
-# ---------------------------------------------------------------------------
-
-from ovos_a2a_solver.client import A2AClient, AgentCard  # noqa: E402
-
-_STUB_REPLY = "stubbed a2a reply"
-_STUB_CARD = AgentCard(
-    name="StubAgent",
-    description="Deterministic stub for CI",
-    url="http://stub.invalid",
-    version="0.0",
-    skills=[],
-    streaming=False,
-)
-
-# Save originals so the patch can be undone after the module fixture tears down.
-_REAL_FETCH_AGENT_CARD = A2AClient.fetch_agent_card
-_REAL_SEND_TASK = A2AClient.send_task
-
-
-def _stub_fetch_agent_card(self: A2AClient) -> AgentCard:
-    """Return a static AgentCard; no HTTP request is made."""
-    return _STUB_CARD
-
-
-def _stub_send_task(
-    self: A2AClient,
-    message_text: str,
-    session_id=None,
-    history=None,
-) -> str:
-    """Return a fixed reply; no HTTP request is made."""
-    return _STUB_REPLY
-
 # Disable per-test timeout for the whole module: in a dev environment with many
 # heavy pipeline plugins (m2v, markov, …) the IntentService bootstrap can take
 # several minutes.  In a clean CI environment (only test-extras installed) it
@@ -97,7 +45,7 @@ def _stub_send_task(
 pytestmark = pytest.mark.timeout(0)
 
 # ---------------------------------------------------------------------------
-# Import bus helpers after stubs are installed.
+# Bus helpers
 # ---------------------------------------------------------------------------
 from ovos_bus_client.message import Message  # noqa: E402
 from ovos_bus_client.session import Session, SessionManager  # noqa: E402
@@ -109,18 +57,6 @@ from ovos_bus_client.session import Session, SessionManager  # noqa: E402
 PERSONA_NAME = "A2ABot"
 
 _PERSONAS_DIR = tempfile.mkdtemp()
-_PERSONA_JSON = {
-    "name": PERSONA_NAME,
-    "handlers": ["ovos-a2a-solver"],
-    "ovos-a2a-solver": {
-        # Minimal engine_config — agent_url is required by A2AChatEngine.__init__
-        # but fetch_agent_card and send_task are both stubbed above so no real
-        # HTTP connection is attempted.
-        "agent_url": "http://stub.invalid",
-    },
-}
-with open(os.path.join(_PERSONAS_DIR, f"{PERSONA_NAME}.json"), "w") as _fh:
-    json.dump(_PERSONA_JSON, _fh)
 
 _PIPELINE_CONFIG = {
     "persona": {
@@ -143,24 +79,19 @@ _TEST_PIPELINE = [
 
 
 @pytest.fixture(scope="module")
-def mc():
-    # Apply stubs at class level so every instance the pipeline worker creates
-    # sees them automatically.  Restore originals on teardown so other test
-    # modules (collected in the same pytest session) are not affected.
-    A2AClient.fetch_agent_card = _stub_fetch_agent_card  # type: ignore[method-assign]
-    A2AClient.send_task = _stub_send_task  # type: ignore[method-assign]
-    try:
-        croft = get_minicroft(
-            skill_ids=[],
-            default_pipeline=_TEST_PIPELINE,
-            pipeline_config=_PIPELINE_CONFIG,
-            max_wait=480,  # IntentService loads all installed pipeline plugins (~90 s on this machine)
-        )
-        yield croft
-        croft.stop()
-    finally:
-        A2AClient.fetch_agent_card = _REAL_FETCH_AGENT_CARD  # type: ignore[method-assign]
-        A2AClient.send_task = _REAL_SEND_TASK  # type: ignore[method-assign]
+def mc(a2a_agent_url):
+    persona = {"name": PERSONA_NAME, "handlers": ["ovos-a2a-solver"],
+               "ovos-a2a-solver": {"agent_url": a2a_agent_url}}
+    with open(os.path.join(_PERSONAS_DIR, f"{PERSONA_NAME}.json"), "w") as fh:
+        json.dump(persona, fh)
+    croft = get_minicroft(
+        skill_ids=[],
+        default_pipeline=_TEST_PIPELINE,
+        pipeline_config=_PIPELINE_CONFIG,
+        max_wait=480,  # IntentService loads all installed pipeline plugins (~90 s on this machine)
+    )
+    yield croft
+    croft.stop()
 
 
 # ---------------------------------------------------------------------------
@@ -201,9 +132,8 @@ _SPEAK_MSG_TYPES = {"speak", "ovos.utterance.speak"}
 
 class TestA2APersonaSpeaksThroughPipeline:
     """An utterance must traverse the full OVOS pipeline, reach the A2A
-    persona engine (with its network call stubbed), and produce a non-empty
-    ``speak`` message.  This validates the integration path without any
-    real A2A server or API key.
+    persona engine, reach the real A2A agent, and produce a ``speak``
+    message with the agent's answer.
     """
 
     def test_pipeline_produces_speak(self, mc):
@@ -222,8 +152,8 @@ class TestA2APersonaSpeaksThroughPipeline:
             f"'speak' message had an empty utterance; data={speak_msgs[0].data}"
         )
 
-    def test_speak_contains_stubbed_reply(self, mc):
-        """The spoken text must originate from the stubbed A2A engine reply."""
+    def test_speak_is_the_agent_answer_for_this_session(self, mc):
+        """The spoken text is the agent's echo, in a context the agent assigned."""
         sess = Session(session_id="a2a-e2e-speak-2")
         SessionManager.sessions[sess.session_id] = sess
 
@@ -232,9 +162,9 @@ class TestA2APersonaSpeaksThroughPipeline:
 
         assert speak_msgs, "No speak message produced"
         spoken = speak_msgs[0].data.get("utterance", "")
-        assert _STUB_REPLY in spoken, (
-            f"Expected stub reply {_STUB_REPLY!r} in spoken text {spoken!r}"
-        )
+        context, text = re.fullmatch(r"echo\[([^\]]+)\]: (.*)", spoken).groups()
+        assert text == "what can you do"
+        assert context != "a2a-e2e-speak-2"
 
 
 # ---------------------------------------------------------------------------
@@ -246,8 +176,8 @@ class TestA2APersonaMemory:
     """PersonaService accumulates USER + ASSISTANT turns per session.
 
     The live PersonaService is obtained from the MiniCroft pipeline registry.
-    Drives utterances through the real pipeline; the A2A network boundary is
-    stubbed so the ASSISTANT turn is deterministic.
+    Drives utterances through the real pipeline to the real A2A agent, whose
+    echo answer makes the ASSISTANT turn deterministic.
     """
 
     def test_user_turn_recorded_in_memory(self, mc):
