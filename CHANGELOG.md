@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.2a3](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/tree/0.0.2a3) (2026-10-19)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/compare/0.0.2a2...0.0.2a3)
+
+**Merged pull requests:**
+
+- build: drop the OPM and pytest caps [\#14](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/pull/14) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.0.2a2](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/tree/0.0.2a2) (2026-09-19)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/compare/0.0.2a1...0.0.2a2)
