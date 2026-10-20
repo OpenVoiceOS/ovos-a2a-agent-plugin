@@ -342,8 +342,13 @@ class A2AClient:
         Send one user message with ``SendStreamingMessage`` and yield text as it arrives.
 
         Text comes from agent messages, artifact updates and status-update
-        messages. A task snapshot is yielded only when the stream carried no
-        other text, so an answer is never yielded twice.
+        messages. An artifact update that replaces its artifact yields only
+        the text added to it, and distinct artifacts are separated by a
+        newline. A replacement that does not extend the earlier text of its
+        artifact yields nothing at once: the replaced text is final, and it is
+        yielded in full, in artifact order, after the stream ends. A message
+        of a working or completed task is yielded only when the stream carried
+        no other text, as is the task snapshot.
 
         Raises:
             a2a.utils.errors.A2AError: On network, HTTP or JSON-RPC failure.
@@ -352,7 +357,10 @@ class A2AClient:
         """
         events = self._events(message_text, session_id, streaming=True).__aiter__()
         yielded = False
-        snapshot = ""
+        snapshot = progress = closing = ""
+        artifacts: Dict[str, str] = {}
+        rewritten: List[str] = []
+        last_artifact = ""
         while True:
             try:
                 event = self._run(events.__anext__())
@@ -361,11 +369,43 @@ class A2AClient:
             text = response_text(event)
             if event.HasField("task"):
                 snapshot = text or snapshot
-            elif text:
+                continue
+            if event.HasField("artifact_update"):
+                update = event.artifact_update
+                artifact_id = update.artifact.artifact_id
+                seen = artifacts.get(artifact_id)
+                if update.append or seen is None:
+                    artifacts[artifact_id] = (seen or "") + text
+                else:
+                    artifacts[artifact_id] = text
+                    if text.startswith(seen):
+                        text = text[len(seen):]
+                    elif text.startswith(seen.rstrip()):
+                        text = text[len(seen.rstrip()):].lstrip()
+                    elif artifact_id not in rewritten:
+                        rewritten.append(artifact_id)
+                if artifact_id in rewritten:
+                    text = ""
+                if text and last_artifact and artifact_id != last_artifact:
+                    text = "\n" + text
+                if text:
+                    last_artifact = artifact_id
+            elif event.HasField("status_update"):
+                state = event.status_update.status.state
+                if state == TaskState.TASK_STATE_WORKING:
+                    progress = text or progress
+                    continue
+                if state == TaskState.TASK_STATE_COMPLETED:
+                    closing = text or closing
+                    continue
+            if text:
                 yielded = True
                 yield text
-        if not yielded and snapshot:
-            yield snapshot
+        for artifact_id in [a for a in artifacts if a in rewritten]:
+            yielded = True
+            yield "\n" + artifacts[artifact_id]
+        if not yielded and (closing or snapshot or progress):
+            yield closing or snapshot or progress
 
     def close(self) -> None:
         """Close the HTTP connections and stop the event loop thread."""

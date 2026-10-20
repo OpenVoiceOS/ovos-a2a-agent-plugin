@@ -23,6 +23,7 @@ import json
 import os
 import re
 import tempfile
+import time
 
 import pytest
 
@@ -55,6 +56,11 @@ from ovos_bus_client.session import Session, SessionManager  # noqa: E402
 # ---------------------------------------------------------------------------
 
 PERSONA_NAME = "A2ABot"
+STREAM_PERSONA = "A2AStreamBot"
+SLOW_PERSONA = "A2ASlowBot"
+DOWN_PERSONA = "A2ADownBot"
+SLOW_STREAM_PERSONA = "A2ASlowStreamBot"
+DOWN_STREAM_PERSONA = "A2ADownStreamBot"
 
 _PERSONAS_DIR = tempfile.mkdtemp()
 
@@ -80,10 +86,18 @@ _TEST_PIPELINE = [
 
 @pytest.fixture(scope="module")
 def mc(a2a_agent_url):
-    persona = {"name": PERSONA_NAME, "handlers": ["ovos-a2a-solver"],
-               "ovos-a2a-solver": {"agent_url": a2a_agent_url}}
-    with open(os.path.join(_PERSONAS_DIR, f"{PERSONA_NAME}.json"), "w") as fh:
-        json.dump(persona, fh)
+    engines = {
+        PERSONA_NAME: {"agent_url": a2a_agent_url},
+        STREAM_PERSONA: {"agent_url": a2a_agent_url, "streaming": True},
+        SLOW_PERSONA: {"agent_url": a2a_agent_url, "timeout": 1},
+        DOWN_PERSONA: {"agent_url": "http://127.0.0.1:1", "timeout": 3},
+        SLOW_STREAM_PERSONA: {"agent_url": a2a_agent_url, "timeout": 1, "streaming": True},
+        DOWN_STREAM_PERSONA: {"agent_url": "http://127.0.0.1:1", "timeout": 3, "streaming": True},
+    }
+    for name, engine_config in engines.items():
+        persona = {"name": name, "handlers": ["ovos-a2a-solver"], "ovos-a2a-solver": engine_config}
+        with open(os.path.join(_PERSONAS_DIR, f"{name}.json"), "w") as fh:
+            json.dump(persona, fh)
     croft = get_minicroft(
         skill_ids=[],
         default_pipeline=_TEST_PIPELINE,
@@ -105,6 +119,32 @@ def _utterance_msg(utterance: str, sess: Session) -> Message:
         {"utterances": [utterance], "lang": sess.lang},
         {"session": sess.serialize()},
     )
+
+
+def _session(session_id: str, persona: str = PERSONA_NAME) -> Session:
+    """A registered session whose active persona is ``persona``."""
+    sess = Session(session_id=session_id)
+    sess.persona_id = persona
+    SessionManager.sessions[sess.session_id] = sess
+    return sess
+
+
+def _speaks(messages):
+    """The spoken messages, one per utterance, in whichever spelling the stack emits."""
+    for msg_type in ("ovos.utterance.speak", "speak"):
+        spoken = [m for m in messages if m.msg_type == msg_type]
+        if spoken:
+            return spoken
+    return []
+
+
+def _spoken_texts(messages):
+    """Spoken sentences, without the space the utterance pipeline puts before punctuation."""
+    return [re.sub(r"\s+([.,?!])", r"\1", m.data["utterance"]).strip() for m in _speaks(messages)]
+
+
+def _context_of(spoken: str) -> str:
+    return re.fullmatch(r"echo\[([^\]]+)\]: .*", spoken).group(1)
 
 
 def _drive_utterance(croft, sess: Session, utterance: str, timeout: int = 30):
@@ -253,3 +293,103 @@ class TestA2APersonaMemory:
             f"Expected at least 2 history entries after two turns, got {len(history)}: "
             f"{[m.content for m in history]}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Test 3: the follow-up reaches the remote conversation of the first turn
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("persona", [PERSONA_NAME, STREAM_PERSONA], ids=["blocking", "streaming"])
+class TestA2AFollowUpKeepsTheRemoteConversation:
+    def test_follow_up_reuses_the_context_the_agent_assigned(self, mc, persona):
+        sess = _session("a2a-e2e-context-1-" + persona, persona)
+
+        first = _speaks(_drive_utterance(mc, sess, "first question here"))
+        second = _speaks(_drive_utterance(mc, sess, "second question here"))
+
+        assert len(first) == 1 and len(second) == 1
+        assert _context_of(first[0].data["utterance"]) == _context_of(second[0].data["utterance"])
+
+    def test_two_sessions_get_two_remote_conversations(self, mc, persona):
+        one = _speaks(_drive_utterance(mc, _session("a2a-e2e-context-2a-" + persona, persona), "hello from one"))
+        two = _speaks(_drive_utterance(mc, _session("a2a-e2e-context-2b-" + persona, persona), "hello from two"))
+
+        assert _context_of(one[0].data["utterance"]) != _context_of(two[0].data["utterance"])
+
+    def test_remote_agent_remembers_across_turns(self, mc, persona):
+        sess = _session("a2a-e2e-context-3-" + persona, persona)
+
+        _drive_utterance(mc, sess, "remember purple")
+        recalled = _speaks(_drive_utterance(mc, sess, "recall"))
+
+        assert [m.data["utterance"] for m in recalled] == ["purple"]
+
+
+# ---------------------------------------------------------------------------
+# Test 4: a failing remote agent is spoken about once
+# ---------------------------------------------------------------------------
+
+
+class TestA2AFailuresAreSpokenOnce:
+    def _one_error_dialog(self, messages):
+        spoken = [m.data["utterance"] for m in _speaks(messages)]
+        assert len(spoken) == 1, spoken
+        assert spoken[0].strip() and not spoken[0].startswith("echo["), spoken
+        return spoken[0]
+
+    @pytest.mark.parametrize("persona", [PERSONA_NAME, STREAM_PERSONA], ids=["blocking", "streaming"])
+    def test_failed_task(self, mc, persona):
+        self._one_error_dialog(_drive_utterance(mc, _session("a2a-e2e-fail-" + persona, persona), "fail"))
+
+    @pytest.mark.parametrize("persona", [SLOW_PERSONA, SLOW_STREAM_PERSONA], ids=["blocking", "streaming"])
+    def test_agent_slower_than_the_timeout(self, mc, persona):
+        sess = _session("a2a-e2e-slow-" + persona, persona)
+        self._one_error_dialog(_drive_utterance(mc, sess, "slow 5 answer", timeout=30))
+
+    @pytest.mark.parametrize("persona", [DOWN_PERSONA, DOWN_STREAM_PERSONA], ids=["blocking", "streaming"])
+    def test_agent_down(self, mc, persona):
+        sess = _session("a2a-e2e-down-" + persona, persona)
+        self._one_error_dialog(_drive_utterance(mc, sess, "are you there", timeout=30))
+
+
+# ---------------------------------------------------------------------------
+# Test 5: streaming through the pipeline speaks sentence by sentence
+# ---------------------------------------------------------------------------
+
+
+class TestA2AStreamingSpeaksSentences:
+    ANSWER = "Hello there. How are you today? I am fine, thank you"
+    SENTENCES = ["Hello there.", "How are you today?", "I am fine, thank you"]
+
+    def test_streaming_answer_is_spoken_as_separate_sentences(self, mc):
+        sess = _session("a2a-e2e-stream-1", STREAM_PERSONA)
+
+        messages = _drive_utterance(mc, sess, f"chunks {self.ANSWER}")
+
+        assert _spoken_texts(messages) == self.SENTENCES
+
+    def test_first_sentence_is_spoken_before_the_agent_has_finished(self, mc):
+        sess = _session("a2a-e2e-stream-2", STREAM_PERSONA)
+        cap = CaptureSession(mc, eof_msgs=["ovos.utterance.handled", "ovos.utterance.cancelled"])
+        by_type = {"ovos.utterance.speak": [], "speak": []}
+        for msg_type, times in by_type.items():
+            mc.bus.on(msg_type, lambda m, times=times: times.append(time.monotonic()))
+
+        start = time.monotonic()
+        cap.capture(_utterance_msg(f"drip {self.ANSWER}", sess), timeout=30)
+        cap.finish()
+        finished = time.monotonic()
+        arrivals = by_type["ovos.utterance.speak"] or by_type["speak"]
+
+        # the agent drips 11 chunks, half a second apart: about 5.5 s in all
+        assert len(arrivals) == len(self.SENTENCES)
+        assert arrivals[0] - start < 3
+        assert finished - start > 4.5
+
+    def test_without_streaming_the_whole_answer_is_one_speak(self, mc):
+        sess = _session("a2a-e2e-stream-3")
+
+        messages = _drive_utterance(mc, sess, f"chunks {self.ANSWER}")
+
+        assert _spoken_texts(messages) == [self.ANSWER]

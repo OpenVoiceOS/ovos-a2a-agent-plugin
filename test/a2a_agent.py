@@ -27,6 +27,21 @@ The user text selects the behaviour:
 - ``done``         the task completes with the status message ``final words`` and no artifact
 - ``slow N ...``   waits N seconds, then echoes
 - ``chunks ...``   answers as a task, one artifact chunk per word
+- ``drip ...``     like ``chunks``, with half a second between the chunks
+- ``adk``          a working status message with the answer, then an artifact that repeats it
+- ``progress``     a working status message ``Looking up the answer...``, then the answer as an artifact
+- ``cumulative``   the answer as artifact updates that each replace the artifact with all the text so far
+- ``artifacts``    two artifacts, ``First part.`` and ``Second part.``
+- ``rewrite``      two replacing artifact updates, ``... is Sydney.`` then ``... is Canberra.``
+- ``interim``      the artifact ``Thinking...`` replaced by the answer
+- ``helloworld``   a working status, the answer as an artifact, then a completed status message
+                   ``Request is completed!`` (the a2a-samples hello world agent)
+- ``nopunct``      two artifacts, ``First part`` and ``Second part``, without final punctuation
+- ``wsrewrite``    the answer as two appended chunks that end in a space, then a replacement
+                   with the whole answer without the trailing space
+- ``tworewrites``  the artifacts ``Alpha old.`` and ``Beta old.``, then ``Beta new.`` and
+                   ``Alpha new.`` as replacements, in that order
+- ``poem``         one artifact of four lines without final punctuation, separated by newlines
 - ``snapshot ...`` streams one artifact chunk per word, then a completed task
                    snapshot that carries the whole answer again
 - anything else    one agent message: ``echo[<contextId>]: <text>``
@@ -68,6 +83,61 @@ memory: dict[str, str] = {}
 rejected_contexts: dict[str, type] = {}
 
 
+SHAPES = ("adk", "progress", "cumulative", "artifacts", "rewrite", "interim", "helloworld", "nopunct",
+          "wsrewrite", "tworewrites", "poem")
+ANSWER = "The answer is 42. Have a nice day."
+
+
+async def send_shape(shape: str, updater: TaskUpdater) -> None:
+    """Answer the way agents built on other frameworks stream."""
+    if shape == "adk":
+        await updater.update_status(TaskState.TASK_STATE_WORKING,
+                                    updater.new_agent_message([new_text_part(ANSWER)]))
+        await updater.add_artifact([new_text_part(ANSWER)], artifact_id="final", last_chunk=True)
+    elif shape == "progress":
+        await updater.update_status(TaskState.TASK_STATE_WORKING,
+                                    updater.new_agent_message([new_text_part("Looking up the answer...")]))
+        await updater.add_artifact([new_text_part(ANSWER)], artifact_id="final", last_chunk=True)
+    elif shape == "cumulative":
+        so_far = ""
+        for piece in ("The answer is 42. ", "Have a ", "nice day."):
+            so_far += piece
+            await updater.add_artifact([new_text_part(so_far)], artifact_id="answer", append=False)
+    elif shape == "artifacts":
+        await updater.add_artifact([new_text_part("First part.")], artifact_id="one")
+        await updater.add_artifact([new_text_part("Second part.")], artifact_id="two")
+    elif shape == "rewrite":
+        for city in ("Sydney", "Canberra"):
+            await updater.add_artifact([new_text_part(f"The capital of Australia is {city}.")],
+                                       artifact_id="answer", append=False)
+    elif shape == "interim":
+        await updater.add_artifact([new_text_part("Thinking...")], artifact_id="answer", append=False)
+        await updater.add_artifact([new_text_part(ANSWER)], artifact_id="answer", append=False)
+    elif shape == "helloworld":
+        await updater.update_status(TaskState.TASK_STATE_WORKING,
+                                    updater.new_agent_message([new_text_part("Processing request...")]))
+        await updater.add_artifact([new_text_part("Hello, World! I am your agent.")], artifact_id="hello")
+        await updater.update_status(TaskState.TASK_STATE_COMPLETED,
+                                    updater.new_agent_message([new_text_part("Request is completed!")]))
+        return
+    elif shape == "nopunct":
+        await updater.add_artifact([new_text_part("First part")], artifact_id="one")
+        await updater.add_artifact([new_text_part("Second part")], artifact_id="two")
+    elif shape == "wsrewrite":
+        await updater.add_artifact([new_text_part("The answer is 42. ")], artifact_id="answer", append=False)
+        await updater.add_artifact([new_text_part("Have a nice day. ")], artifact_id="answer", append=True)
+        await updater.add_artifact([new_text_part(ANSWER)], artifact_id="answer", append=False)
+    elif shape == "tworewrites":
+        for artifact_id, text in (("alpha", "Alpha old."), ("beta", "Beta old."),
+                                  ("beta", "Beta new."), ("alpha", "Alpha new.")):
+            await updater.add_artifact([new_text_part(text)], artifact_id=artifact_id, append=False)
+    elif shape == "poem":
+        await updater.add_artifact(
+            [new_text_part("Roses are red\nViolets are blue\nSugar is sweet\nAnd so are you.")],
+            artifact_id="poem", append=False)
+    await updater.complete()
+
+
 class TestAgent(AgentExecutor):
     async def execute(self, context, event_queue):
         text = get_message_text(context.message)
@@ -100,7 +170,7 @@ class TestAgent(AgentExecutor):
             return
         if words and words[0] == "slow":
             await asyncio.sleep(float(words[1]))
-        if text in ("fail", "ask", "authreq", "done") or words[:1] in (["chunks"], ["snapshot"]):
+        if text in ("fail", "ask", "authreq", "done", *SHAPES) or words[:1] in (["chunks"], ["drip"], ["snapshot"]):
             await event_queue.enqueue_event(new_task(context.task_id, context.context_id,
                                                      TaskState.TASK_STATE_WORKING))
             updater = TaskUpdater(event_queue, context.task_id, context.context_id)
@@ -116,9 +186,14 @@ class TestAgent(AgentExecutor):
             if text == "done":
                 await updater.complete(updater.new_agent_message([new_text_part("final words")]))
                 return
+            if text in SHAPES:
+                await send_shape(text, updater)
+                return
             for i, word in enumerate(words[1:]):
                 await updater.add_artifact([new_text_part(word + " ")], artifact_id="answer",
                                            append=i > 0, last_chunk=i == len(words) - 2)
+                if words[0] == "drip":
+                    await asyncio.sleep(0.5)
             if words[0] == "snapshot":
                 answer = "".join(word + " " for word in words[1:])
                 await event_queue.enqueue_event(Task(

@@ -19,6 +19,7 @@ dependencies = [
     "ovos-plugin-manager>=2.3.0a1",
     "httpx>=0.25.0,<1.0",
     "a2a-sdk>=1.2.3",
+    "sentence-stream>=1.0.0,<2.0.0",
 ]
 
 [project.urls]

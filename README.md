@@ -18,7 +18,7 @@ A2A is an open protocol that lets one agent call another, whatever framework eac
 
 This plugin is the client side. A persona that uses it sends each user message to one A2A agent and speaks the agent's answer. The plugin uses the [a2a-sdk](https://pypi.org/project/a2a-sdk/) client. It reads the card, picks the transport the card offers, and speaks A2A 1.0 or 0.3, whichever the agent supports.
 
-The plugin never invents an A2A `contextId`. The first message of an OVOS session goes without one, the agent assigns it, and every later message of that session carries the agent's value. The remote agent keeps the conversation for each `contextId`, so a follow-up question in the same session reaches the same conversation. A2A 1.0.1 section 3.4.1 says a client SHOULD NOT send a `contextId` it generated itself. Each device that runs the plugin keeps its own map, so two devices never share a remote conversation, even when both use the OVOS session `default`. The plugin sends only the newest user message. A2A has no field for the client to send earlier turns.
+The plugin never invents an A2A `contextId`. The first message of an OVOS session goes without one, the agent assigns it, and every later message of that session carries the agent's value. The remote agent keeps the conversation for each `contextId`, so a follow-up question in the same session reaches the same conversation. A2A 1.0.1 section 3.4.1 says a client SHOULD NOT send a `contextId` it generated itself. Each device that runs the plugin keeps its own map, so two devices never share a remote conversation, even when both use the OVOS session `default`. This holds per OVOS session: callers that reach the plugin through one OVOS session share one remote conversation. ovos-persona-server serves every HTTP caller from one OVOS session, so all its callers share one remote conversation. The plugin sends only the newest user message. A2A has no field for the client to send earlier turns.
 
 ## Answer through a remote A2A agent
 
@@ -138,6 +138,8 @@ With the agent down, this persona answered with one line of the failure plugin's
 
 ## Reference
 
+<a id="configuration"></a>
+
 ### Settings
 
 | Key | Type | Default | Description |
@@ -145,7 +147,7 @@ With the agent down, this persona answered with one line of the failure plugin's
 | `agent_url` | `str` | (required) | Base URL of the agent: the part before `/.well-known/agent-card.json`. |
 | `auth_header` | `str` | none | Full `Authorization` header value, for example `Bearer <token>`. It goes on every request, the card request included. |
 | `timeout` | `float` | `60` | Seconds to wait for each HTTP request. |
-| `streaming` | `bool` | `false` | Use `SendStreamingMessage`, so `stream_tokens` yields text as the agent sends it. When the agent card says `streaming: false`, the plugin logs a warning and uses `SendMessage`. |
+| `streaming` | `bool` | `false` | Use `SendStreamingMessage`. `stream_tokens` yields text as the agent sends it, and `stream_sentences` gives ovos-persona one complete sentence at a time, so the first sentence is spoken before the agent has finished. With `false`, the whole answer is spoken after the agent has finished. When the agent card says `streaming: false`, the plugin logs a warning and uses `SendMessage`. |
 
 ### What is sent and received
 
@@ -160,7 +162,7 @@ With the agent down, this persona answered with one line of the failure plugin's
 
 ### Python API
 
-`A2AChatEngine(config)` is the plugin. `continue_chat(messages, session_id)` returns an `AgentMessage`, and `stream_tokens(messages, session_id)` yields text.
+`A2AChatEngine(config)` is the plugin. `continue_chat(messages, session_id)` returns an `AgentMessage`, `stream_tokens(messages, session_id)` yields text chunks, and `stream_sentences(messages, session_id)` yields complete sentences.
 
 `A2AClient(base_url, auth_header=None, timeout=60, streaming=False)` works without OPM:
 
