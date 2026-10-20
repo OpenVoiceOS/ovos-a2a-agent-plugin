@@ -1,8 +1,20 @@
 # Changelog
 
+## [0.0.3a3](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/tree/0.0.3a3) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/compare/0.0.3a2...0.0.3a3)
+
+**Merged pull requests:**
+
+- docs: give each setup a task heading, and install the latest alpha [\#16](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/pull/16) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.0.3a2](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/tree/0.0.3a2) (2026-10-20)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/compare/0.0.2a3...0.0.3a2)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/compare/0.0.3a1...0.0.3a2)
+
+## [0.0.3a1](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/tree/0.0.3a1) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/compare/0.0.2a3...0.0.3a1)
 
 **Merged pull requests:**
 
