@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.0.3a1](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/tree/0.0.3a1) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/compare/0.0.2a3...0.0.3a1)
+
+**Merged pull requests:**
+
+- docs: user stories for the A2A solver, and the real persona format [\#15](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/pull/15) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+- fix: speak A2A 1.0 through the a2a-sdk client [\#13](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/pull/13) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.0.2a3](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/tree/0.0.2a3) (2026-10-19)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/compare/0.0.2a2...0.0.2a3)
