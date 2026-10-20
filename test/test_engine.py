@@ -112,3 +112,87 @@ def test_each_session_has_its_own_remote_conversation(engine):
     kitchen = context("kitchen")
     assert context("kitchen") == kitchen
     assert context("bedroom") != kitchen
+
+
+def test_stream_sentences_splits_the_streamed_answer_into_sentences(a2a_agent_url):
+    engine = A2AChatEngine(config={"agent_url": a2a_agent_url, "streaming": True})
+    sentences = list(engine.stream_sentences(
+        msgs((USER, "chunks Hello there. How are you? Fine, thanks.")), session_id="sent"))
+    assert sentences == ["Hello there.", "How are you?", "Fine, thanks."]
+
+
+def test_stream_sentences_yields_a_sentence_before_the_stream_ends(a2a_agent_url, monkeypatch):
+    engine = A2AChatEngine(config={"agent_url": a2a_agent_url, "streaming": True})
+    consumed = []
+
+    def tokens(*args, **kwargs):
+        for chunk in ("Hello there. ", "How are you? ", "Fine, thanks. "):
+            consumed.append(chunk)
+            yield chunk
+
+    monkeypatch.setattr(engine, "stream_tokens", tokens)
+    stream = engine.stream_sentences(msgs((USER, "x")))
+    assert next(stream) == "Hello there."
+    assert consumed == ["Hello there. ", "How are you? "]
+    assert list(stream) == ["How are you?", "Fine, thanks."]
+
+
+def test_stream_sentences_yields_an_unpunctuated_line_when_the_next_artifact_starts(a2a_agent_url, monkeypatch):
+    engine = A2AChatEngine(config={"agent_url": a2a_agent_url, "streaming": True})
+    consumed = []
+
+    def tokens(*args, **kwargs):
+        for chunk in ("First part", "\nSecond part", "\nThird part"):
+            consumed.append(chunk)
+            yield chunk
+
+    monkeypatch.setattr(engine, "stream_tokens", tokens)
+    stream = engine.stream_sentences(msgs((USER, "x")))
+    assert next(stream) == "First part"
+    assert consumed == ["First part", "\nSecond part"]
+    assert list(stream) == ["Second part", "Third part"]
+    engine._client.close()
+
+
+def test_stream_sentences_uses_the_streaming_call_of_the_agent(a2a_agent_url, monkeypatch):
+    engine = A2AChatEngine(config={"agent_url": a2a_agent_url, "streaming": True})
+    calls = []
+    for name in ("send_task", "stream_task"):
+        original = getattr(engine._client, name)
+        monkeypatch.setattr(engine._client, name, lambda *a, _n=name, _o=original, **kw: (calls.append(_n), _o(*a, **kw))[1])
+    list(engine.stream_sentences(msgs((USER, "chunks a b"))))
+    assert calls == ["stream_task"]
+
+
+def test_stream_sentences_without_streaming_yields_the_whole_answer(engine):
+    (sentence,) = engine.stream_sentences(msgs((USER, "One. Two.")), session_id="whole")
+    assert answer_text(sentence) == "One. Two."
+
+
+@pytest.mark.parametrize("shape, sentences", [
+    ("adk", ["The answer is 42.", "Have a nice day."]),
+    ("progress", ["The answer is 42.", "Have a nice day."]),
+    ("cumulative", ["The answer is 42.", "Have a nice day."]),
+    ("artifacts", ["First part.", "Second part."]),
+])
+def test_stream_sentences_speaks_each_stream_shape_once(a2a_agent_url, shape, sentences):
+    engine = A2AChatEngine(config={"agent_url": a2a_agent_url, "streaming": True})
+    assert list(engine.stream_sentences(msgs((USER, shape)), session_id=shape)) == sentences
+
+
+@pytest.mark.parametrize("shape, sentences", [
+    ("rewrite", ["The capital of Australia is Sydney.", "The capital of Australia is Canberra."]),
+    ("interim", ["Thinking...", "The answer is 42.", "Have a nice day."]),
+    ("helloworld", ["Hello, World!", "I am your agent."]),
+    ("nopunct", ["First part", "Second part"]),
+    ("wsrewrite", ["The answer is 42.", "Have a nice day."]),
+    ("tworewrites", ["Alpha old.", "Beta old.", "Alpha new.", "Beta new."]),
+    ("poem", ["Roses are red", "Violets are blue", "Sugar is sweet", "And so are you."]),
+])
+def test_stream_sentences_ends_with_the_final_answer(a2a_agent_url, shape, sentences):
+    streaming = A2AChatEngine(config={"agent_url": a2a_agent_url, "streaming": True})
+    blocking = A2AChatEngine(config={"agent_url": a2a_agent_url})
+    final = list(blocking.stream_sentences(msgs((USER, shape)), session_id=shape))
+    spoken = list(streaming.stream_sentences(msgs((USER, shape)), session_id=shape))
+    assert spoken == sentences
+    assert " ".join(spoken).endswith(" ".join(final))

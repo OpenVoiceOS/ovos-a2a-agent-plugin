@@ -18,6 +18,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from ovos_plugin_manager.templates.agents import AgentMessage, ChatEngine, MessageRole, ToolsArg
 from ovos_utils.log import LOG
+from sentence_stream import SentenceBoundaryDetector
 
 from ovos_a2a_solver.client import A2AClient, AgentCard
 
@@ -178,6 +179,39 @@ class A2AChatEngine(ChatEngine):
         except Exception as exc:  # noqa: BLE001
             LOG.error(f"A2AChatEngine: streaming task failed: {exc}")
             raise
+
+    def stream_sentences(
+        self,
+        messages: List[AgentMessage],
+        session_id: str = "default",
+        lang: Optional[str] = None,
+        units: Optional[str] = None,
+    ) -> Iterable[str]:
+        """
+        Stream complete sentences, suitable for direct TTS.
+
+        With ``streaming`` on, the chunks of :meth:`stream_tokens` pass through a
+        sentence boundary detector, so each sentence is yielded when the agent
+        has sent it. With ``streaming`` off, or when the agent card reports no
+        streaming, this is the ``ChatEngine`` default and yields the whole
+        answer after the agent has finished.
+        """
+        if not self._streaming:
+            yield from super().stream_sentences(messages, session_id, lang, units)
+            return
+
+        detector = SentenceBoundaryDetector()
+        for chunk in self.stream_tokens(messages, session_id, lang, units):
+            if chunk.startswith("\n"):
+                yield from self._lines(detector.finish())
+                detector = SentenceBoundaryDetector()
+            for sentence in detector.add_chunk(chunk):
+                yield from self._lines(sentence)
+        yield from self._lines(detector.finish())
+
+    @staticmethod
+    def _lines(text: str) -> Iterable[str]:
+        return (line.strip() for line in text.split("\n") if line.strip())
 
     # ------------------------------------------------------------------
     # Helpers

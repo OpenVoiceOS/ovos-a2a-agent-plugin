@@ -285,3 +285,21 @@ def test_close_is_idempotent(a2a_agent_url):
     c.send_task("hello")
     c.close()
     c.close()
+
+
+def test_stream_task_speaks_a_repeating_working_status_message_once(client):
+    """A working status message that the final artifact repeats (the shape of Google ADK)."""
+    assert list(client.stream_task("adk")) == ["The answer is 42. Have a nice day."]
+
+
+def test_stream_task_skips_working_progress_messages_when_the_answer_comes(client):
+    assert list(client.stream_task("progress")) == ["The answer is 42. Have a nice day."]
+
+
+def test_stream_task_yields_only_the_new_text_of_a_replaced_artifact(client):
+    chunks = list(client.stream_task("cumulative"))
+    assert "".join(chunks) == "The answer is 42. Have a nice day."
+
+
+def test_stream_task_separates_distinct_artifacts(client):
+    assert "".join(client.stream_task("artifacts")) == "First part.\nSecond part."
