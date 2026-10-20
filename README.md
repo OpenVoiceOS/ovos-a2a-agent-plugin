@@ -5,7 +5,9 @@ An [OVOS](https://openvoiceos.org) `ChatEngine` plugin. It lets an [ovos-persona
 The repository is `ovos-a2a-agent-plugin`. The PyPI package is `ovos-a2a-solver-plugin`, the Python module is `ovos_a2a_solver`, and the plugin id is `ovos-a2a-solver`.
 
 - [What you can do](#what-you-can-do)
-- [User stories](#user-stories)
+- [Answer through a remote A2A agent](#answer-through-a-remote-a2a-agent)
+- [Use the A2A endpoint of ovos-persona-server](#use-the-a2a-endpoint-of-ovos-persona-server)
+- [Handle a remote agent that is down or slow](#handle-a-remote-agent-that-is-down-or-slow)
 - [Reference](#reference)
 - [Deployment](#deployment)
 - [Troubleshooting](#troubleshooting)
@@ -18,16 +20,14 @@ This plugin is the client side. A persona that uses it sends each user message t
 
 The plugin never invents an A2A `contextId`. The first message of an OVOS session goes without one, the agent assigns it, and every later message of that session carries the agent's value. The remote agent keeps the conversation for each `contextId`, so a follow-up question in the same session reaches the same conversation. A2A 1.0.1 section 3.4.1 says a client SHOULD NOT send a `contextId` it generated itself. Each device that runs the plugin keeps its own map, so two devices never share a remote conversation, even when both use the OVOS session `default`. The plugin sends only the newest user message. A2A has no field for the client to send earlier turns.
 
-## User stories
+## Answer through a remote A2A agent
 
-### My OVOS persona answers through a remote A2A agent
-
-You run OVOS and have an A2A agent somewhere: a LangGraph or CrewAI service, another company's assistant, or a second OVOS box. You want a persona that hands each question to that agent.
+Use this setup when you run OVOS and have an A2A agent somewhere: a LangGraph or CrewAI service, another company's assistant, or a second OVOS box. The persona hands each question to that agent.
 
 1. Install the plugin next to ovos-persona:
 
    ```bash
-   uv pip install --prerelease=allow ovos-a2a-solver-plugin
+   pip install --pre ovos-a2a-solver-plugin
    ```
 
 2. Write a persona file. ovos-persona reads every `*.json` file in `~/.config/ovos_persona/`. The `name` field is the persona name, and the file name is used when `name` is missing. `handlers` lists the plugins that answer, in order. The key with the plugin id holds its settings:
@@ -93,12 +93,12 @@ print(persona.chat([AgentMessage(role=MessageRole.USER, content="what is the spe
                    Session("kitchen")))
 ```
 
-### I point it at ovos-persona-server's A2A endpoint
+## Use the A2A endpoint of ovos-persona-server
 
 [ovos-persona-server](https://github.com/OpenVoiceOS/ovos-persona-server) can publish any persona as an A2A agent. This makes one OVOS box the brain of another:
 
 ```bash
-uv pip install --prerelease=allow "ovos-persona-server[a2a]" ovos-solver-rivescript-plugin "httpx<1"
+pip install --pre "ovos-persona-server[a2a]" ovos-solver-rivescript-plugin "httpx<1"
 echo '{"name": "rive", "solvers": ["ovos-solver-rivescript-plugin"]}' > rive.json
 ovos-persona-server --persona rive.json --host 0.0.0.0 --port 8337 \
     --a2a-base-url http://127.0.0.1:8337/a2a
@@ -110,7 +110,7 @@ Set `agent_url` to the `--a2a-base-url` value. Use the address the OVOS box can 
 Does that question interest you?
 ```
 
-### The remote agent is down or slow
+## Handle a remote agent that is down or slow
 
 When the agent cannot answer, the plugin raises an error, and the persona service speaks one line of its error dialog, `persona_error.dialog`. The lines are picked at random. In both cases below, the OVOS persona pipeline spoke, for example:
 
