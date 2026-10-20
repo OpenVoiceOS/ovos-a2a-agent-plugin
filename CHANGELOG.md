@@ -1,8 +1,8 @@
 # Changelog
 
-## [0.0.3a1](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/tree/0.0.3a1) (2026-10-20)
+## [0.0.3a2](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/tree/0.0.3a2) (2026-10-20)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/compare/0.0.2a3...0.0.3a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-a2a-agent-plugin/compare/0.0.2a3...0.0.3a2)
 
 **Merged pull requests:**
 
