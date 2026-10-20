@@ -1,76 +1,49 @@
-"""Tests for agent-card parsing."""
-
-import pytest
+"""AgentCard parsing for A2A 1.0 and 0.3 cards."""
 from ovos_a2a_solver.client import AgentCard, AgentSkill
 
-
-MINIMAL_CARD = {
-    "name": "TestAgent",
-    "description": "A test A2A agent",
-    "url": "https://agent.example.com",
-    "version": "1.0",
-}
-
-FULL_CARD = {
+CARD_1_0 = {
     "name": "FullAgent",
     "description": "Full-featured agent",
-    "url": "https://full.example.com",
+    "supportedInterfaces": [
+        {"url": "https://full.example.com/a2a", "protocolBinding": "JSONRPC", "protocolVersion": "1.0"},
+        {"url": "https://full.example.com/rest", "protocolBinding": "HTTP+JSON", "protocolVersion": "1.0"},
+    ],
     "version": "2.1",
     "capabilities": {"streaming": True},
-    "skills": [
-        {
-            "id": "search",
-            "name": "Web Search",
-            "description": "Search the web",
-            "tags": ["web", "search"],
-            "examples": ["What is the capital of France?"],
-        }
-    ],
+    "skills": [{"id": "search", "name": "Web Search", "description": "Search the web",
+                "tags": ["web", "search"], "examples": ["What is the capital of France?"]}],
 }
 
-
-def test_minimal_card_parse():
-    card = AgentCard.from_dict(MINIMAL_CARD)
-    assert card.name == "TestAgent"
-    assert card.description == "A test A2A agent"
-    assert card.url == "https://agent.example.com"
-    assert card.version == "1.0"
-    assert card.skills == []
-    assert card.streaming is False
+CARD_0_3 = {"name": "OldAgent", "description": "0.3 card", "url": "https://old.example.com/",
+            "protocolVersion": "0.3", "version": "1.0"}
 
 
-def test_full_card_parse():
-    card = AgentCard.from_dict(FULL_CARD)
-    assert card.name == "FullAgent"
+def test_1_0_card_takes_the_url_of_the_first_interface():
+    card = AgentCard.from_dict(CARD_1_0)
+    assert card.url == "https://full.example.com/a2a"
+    assert card.version == "2.1"
     assert card.streaming is True
-    assert len(card.skills) == 1
-    skill = card.skills[0]
-    assert isinstance(skill, AgentSkill)
-    assert skill.id == "search"
-    assert skill.name == "Web Search"
-    assert "web" in skill.tags
-    assert len(skill.examples) == 1
+    assert card.raw == CARD_1_0
 
 
-def test_card_stores_raw():
-    card = AgentCard.from_dict(FULL_CARD)
-    assert card.raw == FULL_CARD
+def test_1_0_card_skills():
+    (skill,) = AgentCard.from_dict(CARD_1_0).skills
+    assert skill == AgentSkill(id="search", name="Web Search", description="Search the web",
+                               tags=["web", "search"], examples=["What is the capital of France?"])
 
 
-def test_skill_from_dict_defaults():
-    skill = AgentSkill.from_dict({"id": "x", "name": "X"})
-    assert skill.description == ""
-    assert skill.tags == []
-    assert skill.examples == []
-
-
-def test_card_missing_capabilities_defaults_no_streaming():
-    card = AgentCard.from_dict({**MINIMAL_CARD, "capabilities": {}})
+def test_0_3_card_takes_the_top_level_url():
+    card = AgentCard.from_dict(CARD_0_3)
+    assert card.url == "https://old.example.com/"
     assert card.streaming is False
+    assert card.skills == []
 
 
-def test_card_version_default():
-    d = dict(MINIMAL_CARD)
-    del d["version"]
-    card = AgentCard.from_dict(d)
-    assert card.version == "1.0"
+def test_missing_fields_default_to_empty():
+    card = AgentCard.from_dict({})
+    assert (card.name, card.description, card.url, card.version) == ("", "", "", "1.0")
+
+
+def test_skill_defaults():
+    skill = AgentSkill.from_dict({"id": "x", "name": "X"})
+    assert (skill.description, skill.tags, skill.examples) == ("", [], [])

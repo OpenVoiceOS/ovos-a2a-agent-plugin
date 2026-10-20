@@ -1,130 +1,91 @@
-"""Tests for A2AChatEngine — solver contract with a mocked A2A server."""
+"""A2AChatEngine against a real a2a-sdk agent (see a2a_agent.py)."""
+import re
 
-import json
 import pytest
-import httpx
-import respx
+from a2a.client.errors import AgentCardResolutionError
 
 from ovos_plugin_manager.templates.agents import AgentMessage, MessageRole
+from ovos_a2a_solver.client import A2AClient, AgentCard
 from ovos_a2a_solver.engine import A2AChatEngine
 
-
-BASE_URL = "https://engine.test"
-
-CARD_RESPONSE = {
-    "name": "EngineAgent",
-    "description": "Mocked engine",
-    "url": BASE_URL,
-    "version": "1.0",
-    "capabilities": {"streaming": False},
-    "skills": [],
-}
-
-TASK_OK = {
-    "jsonrpc": "2.0",
-    "id": "x",
-    "result": {
-        "artifacts": [{"parts": [{"type": "text", "text": "Pong!"}]}]
-    },
-}
+USER, ASSISTANT, SYSTEM = MessageRole.USER, MessageRole.ASSISTANT, MessageRole.SYSTEM
 
 
-def _make_engine(streaming: bool = False) -> A2AChatEngine:
-    return A2AChatEngine(config={"agent_url": BASE_URL, "streaming": streaming})
+def answer_text(answer: str) -> str:
+    """The text part of the test agent's ``echo[<contextId>]: <text>`` answer."""
+    match = re.fullmatch(r"echo\[[^\]]+\]: (.*)", answer, re.DOTALL)
+    assert match, answer
+    return match[1]
 
 
-@respx.mock
-def test_continue_chat_returns_assistant_message():
-    respx.get(BASE_URL + "/.well-known/agent.json").mock(
-        return_value=httpx.Response(200, json=CARD_RESPONSE)
-    )
-    respx.post(BASE_URL).mock(return_value=httpx.Response(200, json=TASK_OK))
-
-    engine = _make_engine()
-    messages = [AgentMessage(role=MessageRole.USER, content="Ping")]
-    reply = engine.continue_chat(messages, session_id="sess-1")
-    assert reply.role == MessageRole.ASSISTANT
-    assert reply.content == "Pong!"
+def msgs(*turns):
+    return [AgentMessage(role=role, content=text) for role, text in turns]
 
 
-@respx.mock
-def test_continue_chat_multi_turn_history():
-    respx.get(BASE_URL + "/.well-known/agent.json").mock(
-        return_value=httpx.Response(200, json=CARD_RESPONSE)
-    )
-    captured = {}
-
-    def capture(request: httpx.Request, *_):
-        captured["body"] = json.loads(request.content)
-        return httpx.Response(200, json=TASK_OK)
-
-    respx.post(BASE_URL).mock(side_effect=capture)
-
-    engine = _make_engine()
-    messages = [
-        AgentMessage(role=MessageRole.USER, content="Hello"),
-        AgentMessage(role=MessageRole.ASSISTANT, content="Hi there"),
-        AgentMessage(role=MessageRole.USER, content="How are you?"),
-    ]
-    engine.continue_chat(messages)
-    params = captured["body"]["params"]
-    # Last user message goes into "message"
-    assert params["message"]["parts"][0]["text"] == "How are you?"
-    # Prior turns go into history
-    assert len(params["history"]) == 2
-    assert params["history"][0]["role"] == "user"
-    assert params["history"][1]["role"] == "assistant"
+@pytest.fixture
+def engine(a2a_agent_url):
+    return A2AChatEngine(config={"agent_url": a2a_agent_url})
 
 
-@respx.mock
-def test_continue_chat_system_message_prepended_to_history():
-    respx.get(BASE_URL + "/.well-known/agent.json").mock(
-        return_value=httpx.Response(200, json=CARD_RESPONSE)
-    )
-    captured = {}
-
-    def capture(request: httpx.Request, *_):
-        captured["body"] = json.loads(request.content)
-        return httpx.Response(200, json=TASK_OK)
-
-    respx.post(BASE_URL).mock(side_effect=capture)
-
-    engine = _make_engine()
-    messages = [
-        AgentMessage(role=MessageRole.SYSTEM, content="You are a pirate."),
-        AgentMessage(role=MessageRole.USER, content="Where is the treasure?"),
-    ]
-    engine.continue_chat(messages)
-    params = captured["body"]["params"]
-    history = params.get("history", [])
-    # System turn is injected at index 0 as a user message (A2A parts format)
-    assert history[0]["role"] == "user"
-    assert "pirate" in history[0]["parts"][0]["text"]
+def test_init_reads_the_agent_card(engine):
+    assert engine._card.name == "test-agent"
 
 
-@respx.mock
-def test_continue_chat_no_user_message_returns_empty():
-    respx.get(BASE_URL + "/.well-known/agent.json").mock(
-        return_value=httpx.Response(200, json=CARD_RESPONSE)
-    )
-    engine = _make_engine()
-    messages = [AgentMessage(role=MessageRole.SYSTEM, content="Only system")]
-    reply = engine.continue_chat(messages)
-    assert reply.role == MessageRole.ASSISTANT
-    assert reply.content == ""
+def test_continue_chat_returns_the_agent_answer(engine):
+    reply = engine.continue_chat(msgs((USER, "Ping")), session_id="sess-1")
+    assert reply.role == ASSISTANT
+    assert answer_text(reply.content) == "Ping"
 
 
-@respx.mock
-def test_stream_tokens_fallback_when_not_streaming():
-    respx.get(BASE_URL + "/.well-known/agent.json").mock(
-        return_value=httpx.Response(200, json=CARD_RESPONSE)
-    )
-    respx.post(BASE_URL).mock(return_value=httpx.Response(200, json=TASK_OK))
+def test_continue_chat_sends_only_the_pending_user_message(engine):
+    history = msgs((SYSTEM, "Be helpful."), (USER, "Q1"), (ASSISTANT, "A1"), (USER, "Q2"))
+    assert answer_text(engine.continue_chat(history, session_id="multi").content) == "Q2"
 
-    engine = _make_engine(streaming=False)
-    messages = [AgentMessage(role=MessageRole.USER, content="Ping")]
-    chunks = list(engine.stream_tokens(messages))
-    assert chunks == ["Pong!"]
+
+def test_continue_chat_accepts_and_ignores_tools(engine):
+    assert engine.supports_tools is False
+    reply = engine.continue_chat(msgs((USER, "Ping")), session_id="t", tools=[{"type": "function"}])
+    assert answer_text(reply.content) == "Ping"
+
+
+def test_continue_chat_without_pending_user_message_returns_empty(engine):
+    assert engine.continue_chat(msgs((USER, "Q1"), (ASSISTANT, "A1"))).content == ""
+
+
+def test_continue_chat_raises_when_the_task_fails(engine):
+    with pytest.raises(RuntimeError, match="backend exploded"):
+        engine.continue_chat(msgs((USER, "fail")))
+
+
+def test_stream_tokens_streams_chunks(a2a_agent_url):
+    engine = A2AChatEngine(config={"agent_url": a2a_agent_url, "streaming": True})
+    assert engine._streaming is True
+    assert list(engine.stream_tokens(msgs((USER, "chunks a b")))) == ["a ", "b "]
+
+
+def test_stream_tokens_falls_back_to_one_answer_without_streaming(engine):
+    (chunk,) = engine.stream_tokens(msgs((USER, "hi")), session_id="fb")
+    assert answer_text(chunk) == "hi"
+
+
+def test_stream_tokens_without_pending_user_message_yields_nothing(a2a_agent_url):
+    engine = A2AChatEngine(config={"agent_url": a2a_agent_url, "streaming": True})
+    assert list(engine.stream_tokens(msgs((SYSTEM, "sys")))) == []
+
+
+def test_streaming_is_disabled_when_the_card_does_not_offer_it(a2a_agent_url, monkeypatch):
+    card = AgentCard(name="NoStream", description="", url=a2a_agent_url, streaming=False)
+    monkeypatch.setattr(A2AClient, "fetch_agent_card", lambda self: card)
+    engine = A2AChatEngine(config={"agent_url": a2a_agent_url, "streaming": True})
+    assert engine._streaming is False
+
+
+def test_unreachable_agent_does_not_abort_init_but_fails_the_chat():
+    engine = A2AChatEngine(config={"agent_url": "http://127.0.0.1:1", "timeout": "3"})
+    assert engine._card is None
+    assert engine._client.timeout == 3.0
+    with pytest.raises(AgentCardResolutionError):
+        engine.continue_chat(msgs((USER, "hello")))
 
 
 def test_missing_agent_url_raises():
@@ -132,48 +93,22 @@ def test_missing_agent_url_raises():
         A2AChatEngine(config={})
 
 
-@respx.mock
-def test_card_fetch_failure_does_not_abort_init():
-    respx.get(BASE_URL + "/.well-known/agent.json").mock(
-        return_value=httpx.Response(404)
-    )
-    # Should not raise; card is optional
-    engine = A2AChatEngine(config={"agent_url": BASE_URL})
-    assert engine._card is None
+@pytest.mark.parametrize("turns, expected", [
+    ([(SYSTEM, "s"), (USER, "Q1"), (ASSISTANT, "A1"), (USER, "Q2")], "Q2"),
+    ([(USER, "Q1"), (USER, "Q2")], "Q2"),
+    ([(USER, "Q1"), (ASSISTANT, "A1")], ""),
+    ([(ASSISTANT, "A1")], ""),
+    ([], ""),
+])
+def test_pending_user_text(turns, expected):
+    assert A2AChatEngine._pending_user_text(msgs(*turns)) == expected
 
 
-@respx.mock
-def test_continue_chat_accepts_and_ignores_tools_kwarg():
-    """Base ChatEngine.continue_chat contract declares a ``tools`` kwarg
-    (ovos_plugin_manager.templates.agents.ChatEngine.continue_chat). Engines
-    that do not support native tool calling must still accept it and ignore
-    it, so the agentic loop's positional call sites keep working and so any
-    future caller that passes ``tools=`` by keyword does not blow up."""
-    respx.get(BASE_URL + "/.well-known/agent.json").mock(
-        return_value=httpx.Response(200, json=CARD_RESPONSE)
-    )
-    respx.post(BASE_URL).mock(return_value=httpx.Response(200, json=TASK_OK))
+def test_each_session_has_its_own_remote_conversation(engine):
+    def context(session_id):
+        reply = engine.continue_chat(msgs((USER, "hi")), session_id=session_id).content
+        return re.fullmatch(r"echo\[([^\]]+)\]: hi", reply)[1]
 
-    engine = _make_engine()
-    assert engine.supports_tools is False
-    messages = [AgentMessage(role=MessageRole.USER, content="Ping")]
-    reply = engine.continue_chat(messages, session_id="sess-1", tools=[{"type": "function"}])
-    assert isinstance(reply, AgentMessage)
-    assert reply.role == MessageRole.ASSISTANT
-    assert reply.content == "Pong!"
-
-
-def test_split_messages_helper():
-    messages = [
-        AgentMessage(role=MessageRole.SYSTEM, content="Be helpful."),
-        AgentMessage(role=MessageRole.USER, content="Q1"),
-        AgentMessage(role=MessageRole.ASSISTANT, content="A1"),
-        AgentMessage(role=MessageRole.USER, content="Q2"),
-    ]
-    user_text, history = A2AChatEngine._split_messages(messages)
-    assert user_text == "Q2"
-    # history: system (as user), Q1, A1
-    assert len(history) == 3
-    assert history[0]["content"] == "Be helpful."
-    assert history[1] == {"role": "user", "content": "Q1"}
-    assert history[2] == {"role": "assistant", "content": "A1"}
+    kitchen = context("kitchen")
+    assert context("kitchen") == kitchen
+    assert context("bedroom") != kitchen
